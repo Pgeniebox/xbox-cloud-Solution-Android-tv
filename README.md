@@ -23,4 +23,7 @@ Special thanks to the **BetterXCloud** team. While they did not directly contrib
 
 ---
 
+
+*Note: Tested on mi box tv.*
+
 *Note: This repository is used for project documentation and release management.*
