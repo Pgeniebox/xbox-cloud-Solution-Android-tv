@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Base tone: dark charcoal with a faint green cast, lifted slightly above center -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="115%p"
+                android:centerX="50%"
+                android:centerY="42%"
+                android:startColor="#151C18"
+                android:endColor="#0A0B0D" />
+        </shape>
+    </item>
+
+    <!-- Brand accent glow, upper-right, matches the banner mark -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="55%p"
+                android:centerX="78%"
+                android:centerY="20%"
+                android:startColor="#2200D26A"
+                android:endColor="#0000D26A" />
+        </shape>
+    </item>
+
+    <!-- Vignette to pull focus to the center and hide raw screen edges -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="100%p"
+                android:centerX="50%"
+                android:centerY="50%"
+                android:startColor="#00000000"
+                android:endColor="#59000000" />
+        </shape>
+    </item>
+
+</layer-list>

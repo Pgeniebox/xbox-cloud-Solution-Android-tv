@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    This file was MISSING from your project.
+    dialog_settings.xml and dialog_streaming_menu.xml both reference
+    @color/selector_text_xbox for every button's textColor, but it
+    didn't exist anywhere in colors_xbox.xml or as its own file.
+
+    Because it was undefined, the build fell back to your theme's
+    colorPrimary (@color/purple_500), which is why the button text
+    looked light purple and was unreadable against the dark panel.
+
+    Put this file in res/color/ (NOT res/drawable/).
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@color/xbox_text_primary" />
+    <item android:state_pressed="true" android:color="@color/xbox_text_primary" />
+    <item android:color="@color/xbox_text_primary" />
+</selector>

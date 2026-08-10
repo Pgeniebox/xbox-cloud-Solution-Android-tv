@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="380dp"
+    android:layout_height="wrap_content"
+    android:maxHeight="500dp"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_xbox"
+    android:padding="24dp">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none"
+        android:fadeScrollbars="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Header row with green accent bar, like Xbox settings blades -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="24dp">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="22dp"
+                    android:background="@color/xbox_green_bright"
+                    android:layout_marginEnd="12dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="GAMEPAD SETTINGS"
+                    android:textColor="@color/selector_text_xbox"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05"/>
+            </LinearLayout>
+
+            <!-- Live dual-stick test -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <com.world.cloudxsolution.StickTestView
+                        android:id="@+id/stick_test_left"
+                        android:layout_width="110dp"
+                        android:layout_height="110dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="LEFT STICK"
+                        android:textColor="@color/xbox_text_secondary"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.05"
+                        android:layout_marginTop="6dp"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <com.world.cloudxsolution.StickTestView
+                        android:id="@+id/stick_test_right"
+                        android:layout_width="110dp"
+                        android:layout_height="110dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="RIGHT STICK"
+                        android:textColor="@color/xbox_text_secondary"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.05"
+                        android:layout_marginTop="6dp"/>
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Gray dot = raw input   •   Green dot = after deadzone/sensitivity"
+                android:textColor="@color/xbox_text_secondary"
+                android:textSize="10sp"
+                android:gravity="center"
+                android:alpha="0.7"
+                android:layout_marginBottom="12dp"/>
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_start_testing"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Start Testing"
+                android:textColor="@color/selector_text_xbox"
+                android:textAllCaps="true"
+                android:textSize="13sp"
+                android:background="@drawable/selector_button_xbox"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:focusable="true"
+                android:layout_marginBottom="20dp"/>
+
+            <TextView
+                android:id="@+id/tv_deadzone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stick Deadzone: 0.12"
+                android:textColor="@color/xbox_text_secondary"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp"/>
+
+            <SeekBar
+                android:id="@+id/sb_deadzone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="50"
+                android:progress="12"
+                android:progressDrawable="@drawable/seekbar_progress_xbox"
+                android:thumb="@drawable/seekbar_thumb_xbox"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
+                android:layout_marginBottom="24dp"/>
+
+            <TextView
+                android:id="@+id/tv_sensitivity"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Camera Sensitivity: 1.5"
+                android:textColor="@color/xbox_text_secondary"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp"/>
+
+            <SeekBar
+                android:id="@+id/sb_sensitivity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="30"
+                android:progress="15"
+                android:progressDrawable="@drawable/seekbar_progress_xbox"
+                android:thumb="@drawable/seekbar_thumb_xbox"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
+                android:layout_marginBottom="24dp"/>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/sw_unreliable_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Use Modern Input (Unreliable)"
+                android:textColor="@color/xbox_text_secondary"
+                android:textSize="14sp"
+                android:checked="true"
+                android:layout_marginBottom="16dp"
+                android:theme="@style/XboxSwitchTheme"/>
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_marginTop="16dp">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="110dp"
+            android:text="Cancel"
+            android:textColor="@color/selector_text_xbox"
+            android:textAllCaps="true"
+            android:textSize="13sp"
+            android:background="@drawable/selector_button_xbox"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:focusable="true"
+            android:layout_marginEnd="12dp"/>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_apply"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="110dp"
+            android:text="Apply"
+            android:textColor="@color/selector_text_xbox"
+            android:textAllCaps="true"
+            android:textSize="13sp"
+            android:background="@drawable/selector_button_xbox"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:focusable="true"/>
+
+    </LinearLayout>
+
+</LinearLayout>

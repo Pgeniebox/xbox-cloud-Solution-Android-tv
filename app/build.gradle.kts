@@ -1,0 +1,135 @@
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
+import java.util.Properties
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+val webrtcOriginal: Configuration by configurations.creating
+
+tasks.register("createModifiedWebrtcJar") {
+    val outputAar = file("$projectDir/libs/webrtc-modified.aar")
+    val inputAarProvider = webrtcOriginal.elements.map { it.first().asFile }
+
+    inputs.file(inputAarProvider)
+    outputs.file(outputAar)
+
+    doLast {
+        val inputAar = inputAarProvider.get()
+        if (outputAar.exists()) {
+            outputAar.delete()
+        }
+        outputAar.parentFile.mkdirs()
+
+        ZipFile(inputAar).use { aarIn ->
+            ZipOutputStream(FileOutputStream(outputAar)).use { aarOut ->
+                aarIn.entries().asSequence().forEach { aarEntry ->
+                    aarOut.putNextEntry(ZipEntry(aarEntry.name).apply { time = aarEntry.time })
+                    
+                    if (aarEntry.name == "classes.jar") {
+                        // Modify classes.jar in-memory (using a temp byte array for simplicity if it fits, 
+                        // or a temp file)
+                        val tempClassesJar = File.createTempFile("classes", ".jar")
+                        tempClassesJar.deleteOnExit()
+                        
+                        aarIn.getInputStream(aarEntry).use { it.copyTo(FileOutputStream(tempClassesJar)) }
+                        
+                        ZipFile(tempClassesJar).use { classesIn ->
+                            val bos = ByteArrayOutputStream()
+                            ZipOutputStream(bos).use { classesOut ->
+                                classesIn.entries().asSequence().forEach { classEntry ->
+                                    // Remove EglThread and its inner classes
+                                    if (classEntry.name == "org/webrtc/EglThread.class" || 
+                                        classEntry.name.startsWith("org/webrtc/EglThread$")) {
+                                        println("Removing: ${classEntry.name} from classes.jar")
+                                        return@forEach
+                                    }
+                                    
+                                    classesOut.putNextEntry(ZipEntry(classEntry.name).apply { time = classEntry.time })
+                                    if (!classEntry.isDirectory) {
+                                        classesIn.getInputStream(classEntry).use { it.copyTo(classesOut) }
+                                    }
+                                    classesOut.closeEntry()
+                                }
+                            }
+                            aarOut.write(bos.toByteArray())
+                        }
+                    } else if (!aarEntry.isDirectory) {
+                        aarIn.getInputStream(aarEntry).use { it.copyTo(aarOut) }
+                    }
+                    aarOut.closeEntry()
+                }
+            }
+        }
+        println("Created modified AAR: $outputAar")
+    }
+}
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace = "com.world.cloudxsolution"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.world.cloudxsolution"
+        minSdk = 29
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = keystoreProperties["storeFile"]?.let { rootProject.file(it) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
+    buildFeatures {
+        aidl = true
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    implementation(libs.appcompat)
+    implementation(libs.material)
+    implementation(libs.androidx.webkit)
+    implementation(libs.androidx.core.splashscreen)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.ext.junit)
+    implementation(libs.gson)
+    implementation(libs.okhttp)
+    
+    // Fetch the original jar for modification
+    webrtcOriginal(libs.webrtc) {
+        isTransitive = false
+    }
+    
+    // Depend on the modified jar generated by the task
+    implementation(files(tasks.named("createModifiedWebrtcJar")))
+}

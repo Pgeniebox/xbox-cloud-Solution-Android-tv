@@ -1,0 +1,66 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+
+    <group
+        android:name="root"
+        android:pivotX="120"
+        android:pivotY="120">
+
+        <!-- Soft glow behind the mark -->
+        <path
+            android:fillColor="#00D26A"
+            android:fillAlpha="0.18"
+            android:pathData="M120,120m-72,0a72,72 0,1 1,144 0a72,72 0,1 1,-144 0" />
+        <path
+            android:fillColor="#00D26A"
+            android:fillAlpha="0.10"
+            android:pathData="M120,120m-95,0a95,95 0,1 1,190 0a95,95 0,1 1,-190 0" />
+
+        <!-- Gamepad glyph, centered in the safe zone -->
+        <group
+            android:translateX="43.5"
+            android:translateY="74.7"
+            android:scaleX="0.765"
+            android:scaleY="0.765">
+            <path
+                android:fillColor="#F4F6F5"
+                android:pathData="M70,10
+                    L130,10
+                    C145,10 155,20 155,35
+                    L155,55
+                    L175,55
+                    C190,55 198,66 198,82
+                    C198,98 187,108 172,108
+                    C159,108 148,101 143,90
+                    L138,80
+                    L62,80
+                    L57,90
+                    C52,101 41,108 28,108
+                    C13,108 2,98 2,82
+                    C2,66 10,55 25,55
+                    L45,55
+                    L45,35
+                    C45,20 55,10 70,10
+                    Z" />
+
+            <path
+                android:fillColor="#0B0D10"
+                android:pathData="M33,66h10v-10h8v10h10v8h-10v10h-8v-10h-10z" />
+
+            <path
+                android:fillColor="#0B0D10"
+                android:pathData="M138,58m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0
+                    M156,66m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0
+                    M138,74m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0
+                    M120,66m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+
+            <path
+                android:fillColor="#00D26A"
+                android:pathData="M100,42m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+        </group>
+    </group>
+
+</vector>

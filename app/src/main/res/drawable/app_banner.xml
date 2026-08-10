@@ -1,0 +1,119 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Base fill -->
+    <path
+        android:fillColor="#2B2D30"
+        android:pathData="M0,0h320v180h-320z" />
+
+    <!-- Diagonal gradient wash -->
+    <path
+        android:pathData="M0,0h320v180h-320z">
+        <fill
+            android:type="linear"
+            android:startX="0"
+            android:startY="0"
+            android:endX="320"
+            android:endY="180">
+            <item android:offset="0" android:color="#12241C" />
+            <item android:offset="0.55" android:color="#0E1013" />
+            <item android:offset="1" android:color="#0A0B0D" />
+        </fill>
+    </path>
+
+    <!-- Soft radial glow behind the mark -->
+    <path
+        android:fillColor="#00D26A"
+        android:fillAlpha="0.16"
+        android:pathData="M262,90m-70,0a70,70 0,1 1,140 0a70,70 0,1 1,-140 0" />
+    <path
+        android:fillColor="#00D26A"
+        android:fillAlpha="0.10"
+        android:pathData="M262,90m-95,0a95,95 0,1 1,190 0a95,95 0,1 1,-190 0" />
+
+    <!-- Faint tech grid, left side only -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.035"
+        android:pathData="M0,20h140 M0,50h140 M0,80h140 M0,110h140 M0,140h140 M20,0v180 M50,0v180 M80,0v180 M110,0v180" />
+
+    <!-- Signal / streaming arcs, upper right -->
+    <group android:translateX="252" android:translateY="34">
+        <path
+            android:fillColor="#00D26A"
+            android:fillAlpha="0.9"
+            android:pathData="M0,-8m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+        <path
+            android:strokeColor="#00D26A"
+            android:strokeWidth="3"
+            android:strokeAlpha="0.75"
+            android:strokeLineCap="round"
+            android:pathData="M-12,-16a17,17 0,0 1,24 0" />
+        <path
+            android:strokeColor="#00D26A"
+            android:strokeWidth="3"
+            android:strokeAlpha="0.4"
+            android:strokeLineCap="round"
+            android:pathData="M-22,-26a34,34 0,0 1,44 0" />
+    </group>
+
+    <!-- Gamepad glyph -->
+    <group
+        android:translateX="192"
+        android:translateY="45"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        <path
+            android:fillColor="#F4F6F5"
+            android:pathData="M70,10
+                L130,10
+                C145,10 155,20 155,35
+                L155,55
+                L175,55
+                C190,55 198,66 198,82
+                C198,98 187,108 172,108
+                C159,108 148,101 143,90
+                L138,80
+                L62,80
+                L57,90
+                C52,101 41,108 28,108
+                C13,108 2,98 2,82
+                C2,66 10,55 25,55
+                L45,55
+                L45,35
+                C45,20 55,10 70,10
+                Z" />
+
+        <!-- D-pad cutout (negative space) -->
+        <path
+            android:fillColor="#0E1013"
+            android:pathData="M33,66h10v-10h8v10h10v8h-10v10h-8v-10h-10z" />
+
+        <!-- Face buttons cutout (negative space) -->
+        <path
+            android:fillColor="#0E1013"
+            android:pathData="M138,58m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0
+                M156,66m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0
+                M138,74m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0
+                M120,66m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+
+        <!-- Brand accent dot on the bridge -->
+        <path
+            android:fillColor="#00D26A"
+            android:pathData="M100,42m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+    </group>
+
+    <!-- Base accent line (kept as a placeholder anchor for the wordmark area) -->
+    <path
+        android:fillColor="#00D26A"
+        android:fillAlpha="0.9"
+        android:pathData="M28,150h64v3h-64z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.15"
+        android:pathData="M28,158h120v2h-120z" />
+
+</vector>

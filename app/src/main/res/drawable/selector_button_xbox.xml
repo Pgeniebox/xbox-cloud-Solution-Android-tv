@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Gamepad D-pad focus -->
+    <item android:state_focused="true" android:drawable="@drawable/bg_button_xbox_focused" />
+    <!-- Touch / A-button press -->
+    <item android:state_pressed="true" android:drawable="@drawable/bg_button_xbox_focused" />
+    <!-- Default -->
+    <item android:drawable="@drawable/bg_button_xbox_normal" />
+</selector>

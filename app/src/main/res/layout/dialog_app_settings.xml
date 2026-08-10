@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="340dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_xbox"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <View
+            android:layout_width="4dp"
+            android:layout_height="22dp"
+            android:background="@color/xbox_green_bright"
+            android:layout_marginEnd="12dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="APP SETTINGS"
+            android:textColor="@color/selector_text_xbox"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"/>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Server Region"
+        android:textColor="@color/xbox_text_primary"
+        android:textSize="12sp"
+        android:layout_marginBottom="4dp"/>
+
+    <androidx.appcompat.widget.AppCompatSpinner
+        android:id="@+id/spinner_region"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/selector_button_xbox"
+        android:layout_marginBottom="16dp"
+        android:focusable="true"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Stream Resolution"
+        android:textColor="@color/xbox_text_primary"
+        android:textSize="12sp"
+        android:layout_marginBottom="4dp"/>
+
+    <androidx.appcompat.widget.AppCompatSpinner
+        android:id="@+id/spinner_resolution"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/selector_button_xbox"
+        android:layout_marginBottom="16dp"
+        android:focusable="true"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Maximum Bitrate"
+        android:textColor="@color/xbox_text_primary"
+        android:textSize="12sp"
+        android:layout_marginBottom="4dp"/>
+
+    <androidx.appcompat.widget.AppCompatSpinner
+        android:id="@+id/spinner_bitrate"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/selector_button_xbox"
+        android:layout_marginBottom="16dp"
+        android:focusable="true"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="User Agent"
+        android:textColor="@color/xbox_text_primary"
+        android:textSize="12sp"
+        android:layout_marginBottom="4dp"/>
+
+    <androidx.appcompat.widget.AppCompatSpinner
+        android:id="@+id/spinner_user_agent"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/selector_button_xbox"
+        android:layout_marginBottom="16dp"
+        android:focusable="true"/>
+
+    <TextView
+        android:id="@+id/tv_initial_scale"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="WebView Initial Scale: Auto"
+        android:textColor="@color/xbox_text_primary"
+        android:textSize="12sp"
+        android:layout_marginBottom="4dp"/>
+
+    <SeekBar
+        android:id="@+id/sb_initial_scale"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="200"
+        android:progress="0"
+        android:progressDrawable="@drawable/seekbar_progress_xbox"
+        android:thumb="@drawable/seekbar_thumb_xbox"
+        android:paddingStart="0dp"
+        android:paddingEnd="0dp"
+        android:layout_marginBottom="24dp"
+        android:focusable="true"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cancel"
+            android:textColor="@color/selector_text_xbox"
+            android:background="@drawable/selector_button_xbox"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:layout_marginEnd="8dp"
+            android:focusable="true"/>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_apply"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Apply"
+            android:textColor="@color/selector_text_xbox"
+            android:background="@drawable/selector_button_xbox"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:focusable="true"/>
+    </LinearLayout>
+
+</LinearLayout>

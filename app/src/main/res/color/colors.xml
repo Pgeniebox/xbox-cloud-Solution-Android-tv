@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="splash_background">#0B0D10</color>
+    <color name="xbox_bg_panel">#E6101010</color>       <!-- translucent near-black panel -->
+    <color name="xbox_bg_panel_solid">#101010</color>
+    <color name="xbox_border">#2A2A2A</color>
+    <color name="xbox_green">#107C10</color>
+    <color name="xbox_green_bright">#5CC500</color>
+    <color name="xbox_text_primary">#FFFFFF</color>
+    <color name="xbox_text_secondary">#A6A6A6</color>
+    <color name="xbox_button_normal">#1F1F1F</color>
+    <color name="xbox_button_pressed">#0C5A0C</color>
+    <color name="xbox_track">#333333</color>
+</resources>

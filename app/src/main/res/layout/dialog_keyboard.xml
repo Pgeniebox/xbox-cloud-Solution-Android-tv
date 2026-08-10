@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="340dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_xbox"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <View
+            android:layout_width="4dp"
+            android:layout_height="22dp"
+            android:background="@color/xbox_green_bright"
+            android:layout_marginEnd="12dp"/>
+
+        <TextView
+            android:id="@+id/keyboard_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="KEYBOARD INPUT"
+            android:textColor="@color/xbox_text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"/>
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/keyboard_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Type here..."
+        android:textColor="@color/xbox_text_primary"
+        android:textColorHint="@color/xbox_text_secondary"
+        android:backgroundTint="@color/xbox_green"
+        android:inputType="text"
+        android:imeOptions="actionDone"
+        android:layout_marginBottom="20dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/btn_close"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="100dp"
+            android:text="Close"
+            android:textColor="@color/selector_text_xbox"
+            android:background="@drawable/selector_button_xbox"
+            android:textAllCaps="false"
+            android:focusable="true"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btn_submit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="100dp"
+            android:text="Submit"
+            android:textColor="@color/selector_text_xbox"
+            android:background="@drawable/selector_button_xbox"
+            android:textAllCaps="false"
+            android:focusable="true"/>
+
+    </LinearLayout>
+</LinearLayout>

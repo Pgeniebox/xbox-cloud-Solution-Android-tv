@@ -1,0 +1,1545 @@
+package com.world.cloudxsolution;
+
+import android.util.Log;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+
+public final class AndroidGamepadListener {
+
+    private static final String TAG = "GamepadListener";
+
+    private final Object stateLock = new Object();
+
+    private final GamepadTransitionFrame transitionFrame;
+    private final Consumer<ByteBuffer> unreliableSendRaw;
+
+    private final AtomicLong unreliableToken = new AtomicLong(0);
+    private long tickCounter = 0;
+
+    private float stickDeadzone = 0.12f;
+    private float cameraSensitivity = 1.5f;
+
+    /*
+     * Global ACK position.
+     *
+     * ACKs are cumulative.
+     *
+     * Example:
+     *
+     *     send 10
+     *     ACK 9
+     *
+     *     send 11
+     *     ACK 10
+     *
+     *     send 12
+     *     ACK 11
+     *
+     * GenericMotion can generate tokens between any button events.
+     * Therefore we never compare an ACK against the "latest token".
+     */
+    private long highestAckToken = -1;
+
+    /*
+     * For every tracked button:
+     *
+     *     0 = no KEYUP waiting
+     *     >0 = original KEYUP token waiting for confirmation
+     *
+     * IMPORTANT:
+     *
+     * This token is NEVER replaced by retry tokens.
+     */
+    private final long[] pendingUpTokens =
+            new long[GamepadTransitionFrame.TRANSITION_COUNT];
+
+    /*
+     * One retry scheduler for all buttons.
+     */
+    private final ScheduledExecutorService buttonRetryExecutor =
+            Executors.newSingleThreadScheduledExecutor();
+
+    /*
+     * Prevent multiple retry loops for the same button.
+     */
+    private final boolean[] upRetryRunning =
+            new boolean[GamepadTransitionFrame.TRANSITION_COUNT];
+
+    private final ScheduledFuture<?>[] upRetryTasks =
+            new ScheduledFuture<?>[
+                    GamepadTransitionFrame.TRANSITION_COUNT
+                    ];
+
+    private static final long UP_RETRY_MS = 80;
+
+    private static final int TYPE_MOTION = 0;
+    private static final int TYPE_KEYDOWN = 1;
+    private static final int TYPE_KEYUP = 2;
+
+    // Response curve exponent for the right (camera) stick.
+    private volatile float rightStickCurveExponent = 1.0f;
+
+    // Reused scratch buffer to avoid per-event allocation.
+    private final float[] stickScratch = new float[2];
+
+    // Raw stick values, guarded by stateLock.
+    private float rawLeftX = 0f;
+    private float rawLeftY = 0f;
+    private float rawRightX = 0f;
+    private float rawRightY = 0f;
+
+    private volatile InputDevice lastDevice;
+    private Runnable onMenuTrigger;
+
+    // When true, nothing is sent to server/game.
+    private volatile boolean testModeActive = false;
+
+    // HIGH PERFORMANCE MAPPING
+    private boolean isPrepared = false;
+    private String preparedDeviceDescriptor = null;
+
+    private final int[] keyCodeMap =
+            new int[KeyEvent.getMaxKeyCode() + 1];
+
+    private int axisRSX;
+    private int axisRSY;
+    private int axisLT;
+    private int axisRT;
+
+    private boolean hasHatAxes = false;
+    private boolean leftTriggerIsAnalog = true;
+    private boolean rightTriggerIsAnalog = true;
+
+    // Previous state for D-pad hat switch edge detection.
+    private boolean prevHatUp;
+    private boolean prevHatDown;
+    private boolean prevHatLeft;
+    private boolean prevHatRight;
+
+
+    public AndroidGamepadListener(
+            int gamepadIndex,
+            float sensitivity,
+            float deadzone,
+            Consumer<ByteBuffer> unreliableSendRaw) {
+
+        setCameraSensitivity(sensitivity);
+        setStickDeadzone(deadzone);
+
+        this.transitionFrame =
+                new GamepadTransitionFrame(gamepadIndex);
+
+        this.unreliableSendRaw = unreliableSendRaw;
+
+        Arrays.fill(keyCodeMap, -1);
+    }
+
+
+    /*
+     * ============================================================
+     * TEST MODE
+     * ============================================================
+     */
+
+    public void setTestModeActive(boolean active) {
+        this.testModeActive = active;
+    }
+
+    public boolean isTestModeActive() {
+        return testModeActive;
+    }
+
+
+    /*
+     * ============================================================
+     * ACK HANDLING
+     * ============================================================
+     */
+
+    public void handleAck(int token) {
+
+        long ackToken =
+                ((long) token) & 0xFFFFFFFFL;
+
+        synchronized (stateLock) {
+
+            /*
+             * ACKs move forward only.
+             *
+             * Ignore an old ACK that arrives after a newer ACK.
+             */
+            if (highestAckToken == -1 ||
+                    ackToken > highestAckToken) {
+
+                highestAckToken = ackToken;
+            }
+
+//            Log.d(
+//                    TAG,
+//                    "received ACK=" + ackToken +
+//                            " highestACK=" + highestAckToken
+//            );
+
+            /*
+             * Check every pending KEYUP.
+             */
+            for (int index = 0;
+                 index < pendingUpTokens.length;
+                 index++) {
+
+                long upToken =
+                        pendingUpTokens[index];
+
+                if (upToken == 0) {
+                    continue;
+                }
+
+                /*
+                 * If the server has reached this token,
+                 * the KEYUP is confirmed.
+                 *
+                 * Example:
+                 *
+                 *     KEYUP = 11
+                 *
+                 *     ACK 10 -> still pending
+                 *     ACK 11 -> confirmed
+                 *     ACK 12 -> confirmed
+                 */
+                if (highestAckToken >= upToken) {
+
+//                    Log.d(
+//                            TAG,
+//                            "KEYUP confirmed"
+//                                    + " index=" + index
+//                                    + " upToken=" + upToken
+//                                    + " highestACK=" + highestAckToken
+//                    );
+
+                    pendingUpTokens[index] = 0;
+
+                    stopUpRetryLocked(index);
+
+                    /*
+                     * If the user pressed the button again
+                     * while the previous UP was waiting,
+                     * send the DOWN now.
+                     */
+                    if (transitionFrame.held[index]) {
+
+                        transitionFrame.bumpButton(index);
+
+                        sendUnreliableIfChanged(
+                                TYPE_KEYDOWN
+                        );
+
+//                        Log.d(
+//                                TAG,
+//                                "Delayed KEYDOWN sent"
+//                                        + " index=" + index
+//                        );
+                    }
+                }
+            }
+
+            stateLock.notifyAll();
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * NETWORK SEND
+     * ============================================================
+     */
+
+    private void sendTwice(GamepadPendingState state) {
+        sendState(state);
+    }
+
+
+    private void sendState(GamepadPendingState state) {
+
+        if (testModeActive) {
+            return;
+        }
+
+        try {
+
+            ByteBuffer packet =
+                    UnreliableInputPacket.forChangedGamepads(
+                            state.token,
+                            state.tick,
+                            state.snapshot
+                    );
+
+            unreliableSendRaw.accept(packet);
+
+        } catch (Exception e) {
+
+            Log.e(
+                    TAG,
+                    "Failed to send packet",
+                    e
+            );
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * DEVICE PREPARATION
+     * ============================================================
+     */
+
+    public String prepare(InputDevice device) {
+
+        if (device == null) {
+            return "";
+        }
+
+        if (device.isVirtual()) {
+            return "";
+        }
+
+        String descriptor =
+                device.getDescriptor();
+
+        synchronized (stateLock) {
+
+            lastDevice = device;
+
+            if (isPrepared &&
+                    descriptor != null &&
+                    descriptor.equals(
+                            preparedDeviceDescriptor)) {
+
+                return "";
+            }
+
+            preparedDeviceDescriptor = descriptor;
+
+            String devName =
+                    device.getName();
+
+            Arrays.fill(
+                    keyCodeMap,
+                    -1
+            );
+
+            // Populate KeyCode Mapping Table.
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_A,
+                    GamepadTransitionFrame.INDEX_A
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_B,
+                    GamepadTransitionFrame.INDEX_B
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_X,
+                    GamepadTransitionFrame.INDEX_X
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_Y,
+                    GamepadTransitionFrame.INDEX_Y
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_L1,
+                    GamepadTransitionFrame.INDEX_LEFT_SHOULDER
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_R1,
+                    GamepadTransitionFrame.INDEX_RIGHT_SHOULDER
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_THUMBL,
+                    GamepadTransitionFrame.INDEX_LEFT_THUMB
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_THUMBR,
+                    GamepadTransitionFrame.INDEX_RIGHT_THUMB
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_START,
+                    GamepadTransitionFrame.INDEX_MENU
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_SELECT,
+                    GamepadTransitionFrame.INDEX_VIEW
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BACK,
+                    GamepadTransitionFrame.INDEX_VIEW
+            );
+
+            map(
+                    KeyEvent.KEYCODE_BUTTON_MODE,
+                    GamepadTransitionFrame.INDEX_NEXUS
+            );
+
+
+            // Detect Axis Layout.
+
+            if (device.getMotionRange(
+                    MotionEvent.AXIS_Z,
+                    InputDevice.SOURCE_JOYSTICK
+            ) == null
+                    &&
+                    device.getMotionRange(
+                            MotionEvent.AXIS_RX,
+                            InputDevice.SOURCE_JOYSTICK
+                    ) != null) {
+
+                axisRSX = MotionEvent.AXIS_RX;
+                axisRSY = MotionEvent.AXIS_RY;
+
+            } else {
+
+                axisRSX = MotionEvent.AXIS_Z;
+                axisRSY = MotionEvent.AXIS_RZ;
+            }
+
+
+            if (device.getMotionRange(
+                    MotionEvent.AXIS_LTRIGGER,
+                    InputDevice.SOURCE_JOYSTICK
+            ) != null) {
+
+                axisLT =
+                        MotionEvent.AXIS_LTRIGGER;
+
+                leftTriggerIsAnalog = true;
+
+            } else if (device.getMotionRange(
+                    MotionEvent.AXIS_BRAKE,
+                    InputDevice.SOURCE_JOYSTICK
+            ) != null) {
+
+                axisLT =
+                        MotionEvent.AXIS_BRAKE;
+
+                leftTriggerIsAnalog = true;
+
+            } else {
+
+                leftTriggerIsAnalog = false;
+            }
+
+
+            if (device.getMotionRange(
+                    MotionEvent.AXIS_RTRIGGER,
+                    InputDevice.SOURCE_JOYSTICK
+            ) != null) {
+
+                axisRT =
+                        MotionEvent.AXIS_RTRIGGER;
+
+                rightTriggerIsAnalog = true;
+
+            } else if (device.getMotionRange(
+                    MotionEvent.AXIS_GAS,
+                    InputDevice.SOURCE_JOYSTICK
+            ) != null) {
+
+                axisRT =
+                        MotionEvent.AXIS_GAS;
+
+                rightTriggerIsAnalog = true;
+
+            } else {
+
+                rightTriggerIsAnalog = false;
+            }
+
+
+            hasHatAxes =
+                    device.getMotionRange(
+                            MotionEvent.AXIS_HAT_X,
+                            InputDevice.SOURCE_JOYSTICK
+                    ) != null
+                            &&
+                            device.getMotionRange(
+                                    MotionEvent.AXIS_HAT_Y,
+                                    InputDevice.SOURCE_JOYSTICK
+                            ) != null;
+
+
+            if (!hasHatAxes) {
+
+                map(
+                        KeyEvent.KEYCODE_DPAD_UP,
+                        GamepadTransitionFrame.INDEX_DPAD_UP
+                );
+
+                map(
+                        KeyEvent.KEYCODE_DPAD_DOWN,
+                        GamepadTransitionFrame.INDEX_DPAD_DOWN
+                );
+
+                map(
+                        KeyEvent.KEYCODE_DPAD_LEFT,
+                        GamepadTransitionFrame.INDEX_DPAD_LEFT
+                );
+
+                map(
+                        KeyEvent.KEYCODE_DPAD_RIGHT,
+                        GamepadTransitionFrame.INDEX_DPAD_RIGHT
+                );
+            }
+
+            isPrepared = true;
+
+            return devName + " | Connected";
+        }
+    }
+
+
+    private boolean isRemoteEvent(InputDevice device) {
+
+        return device == null ||
+                device.isVirtual();
+    }
+
+
+    private void map(
+            int keyCode,
+            int transitionIndex) {
+
+        if (keyCode >= 0 &&
+                keyCode < keyCodeMap.length) {
+
+            keyCodeMap[keyCode] =
+                    transitionIndex;
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * PENDING STATE
+     * ============================================================
+     */
+
+    private static class GamepadPendingState {
+
+        final long token;
+        final long tick;
+        final GamepadTransitionFrame snapshot;
+
+        GamepadPendingState(
+                long token,
+                long tick,
+                GamepadTransitionFrame snapshot) {
+
+            this.token = token;
+            this.tick = tick;
+            this.snapshot = snapshot;
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * KEY DOWN
+     * ============================================================
+     */
+
+    public boolean onKeyDown(
+            int keyCode,
+            KeyEvent event) {
+
+        if (!isPrepared ||
+                isRemoteEvent(event.getDevice())) {
+
+            return false;
+        }
+
+        /*
+         * Ignore Android's auto-repeat.
+         */
+        if (event.getRepeatCount() > 0) {
+            return true;
+        }
+
+        int index =
+                (keyCode >= 0 &&
+                        keyCode < keyCodeMap.length)
+                        ? keyCodeMap[keyCode]
+                        : -1;
+
+
+        /*
+         * Digital triggers.
+         */
+        if (index == -1) {
+
+            if (keyCode ==
+                    KeyEvent.KEYCODE_BUTTON_L2
+                    &&
+                    !leftTriggerIsAnalog) {
+
+                synchronized (stateLock) {
+
+                    transitionFrame.axes[
+                            GamepadTransitionFrame.AXIS_LEFT_TRIGGER
+                            ] = 1.0f;
+
+                    sendUnreliableIfChanged(
+                            TYPE_KEYDOWN
+                    );
+                }
+
+                return true;
+            }
+
+
+            if (keyCode ==
+                    KeyEvent.KEYCODE_BUTTON_R2
+                    &&
+                    !rightTriggerIsAnalog) {
+
+                synchronized (stateLock) {
+
+                    transitionFrame.axes[
+                            GamepadTransitionFrame.AXIS_RIGHT_TRIGGER
+                            ] = 1.0f;
+
+                    sendUnreliableIfChanged(
+                            TYPE_KEYDOWN
+                    );
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+
+        /*
+         * Tracked buttons.
+         */
+        if (isTrackedButton(index)) {
+
+            synchronized (stateLock) {
+
+                /*
+                 * If a previous KEYUP is still pending,
+                 * remember the physical DOWN but do NOT
+                 * send it yet.
+                 */
+                if (pendingUpTokens[index] != 0) {
+
+//                    Log.d(
+//                            TAG,
+//                            "KEYDOWN delayed"
+//                                    + " index=" + index
+//                                    + " pendingUP="
+//                                    + pendingUpTokens[index]
+//                    );
+
+                    /*
+                     * Keep the physical state as DOWN.
+                     *
+                     * The existing GamepadTransitionFrame
+                     * state is still released from the previous
+                     * KEYUP, so we only send the new DOWN after
+                     * the old UP is confirmed.
+                     */
+                    transitionFrame.held[index] = true;
+
+                    ensureUpRetryLocked(index);
+
+                    return true;
+                }
+
+
+                /*
+                 * Normal KEYDOWN.
+                 */
+                transitionFrame.bumpButton(index);
+
+                sendUnreliableIfChanged(
+                        TYPE_KEYDOWN
+                );
+            }
+
+            return true;
+        }
+
+
+        /*
+         * Non-tracked buttons.
+         */
+        synchronized (stateLock) {
+
+            if (index ==
+                    GamepadTransitionFrame.INDEX_MENU
+                    &&
+                    transitionFrame.held[
+                            GamepadTransitionFrame.INDEX_VIEW
+                            ]) {
+
+                transitionFrame.resetAllHeldButtons();
+
+                sendUnreliableIfChanged(
+                        TYPE_KEYDOWN
+                );
+
+                if (!testModeActive &&
+                        onMenuTrigger != null) {
+
+                    onMenuTrigger.run();
+                }
+
+                return true;
+            }
+
+
+            transitionFrame.bumpButton(index);
+
+            sendUnreliableIfChanged(
+                    TYPE_KEYDOWN
+            );
+        }
+
+        return true;
+    }
+
+
+    /*
+     * ============================================================
+     * KEY UP
+     * ============================================================
+     */
+
+    public boolean onKeyUp(
+            int keyCode,
+            KeyEvent event) {
+
+        if (!isPrepared ||
+                isRemoteEvent(event.getDevice())) {
+
+            return false;
+        }
+
+        int index =
+                (keyCode >= 0 &&
+                        keyCode < keyCodeMap.length)
+                        ? keyCodeMap[keyCode]
+                        : -1;
+
+
+        /*
+         * IMPORTANT:
+         *
+         * Check index before accessing pendingUpTokens[index].
+         */
+        if (index == -1) {
+
+            if (keyCode ==
+                    KeyEvent.KEYCODE_BUTTON_L2
+                    &&
+                    !leftTriggerIsAnalog) {
+
+                synchronized (stateLock) {
+
+                    transitionFrame.axes[
+                            GamepadTransitionFrame.AXIS_LEFT_TRIGGER
+                            ] = 0f;
+
+                    sendUnreliableIfChanged(
+                            TYPE_KEYUP
+                    );
+                }
+
+                return true;
+            }
+
+
+            if (keyCode ==
+                    KeyEvent.KEYCODE_BUTTON_R2
+                    &&
+                    !rightTriggerIsAnalog) {
+
+                synchronized (stateLock) {
+
+                    transitionFrame.axes[
+                            GamepadTransitionFrame.AXIS_RIGHT_TRIGGER
+                            ] = 0f;
+
+                    sendUnreliableIfChanged(
+                            TYPE_KEYUP
+                    );
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+
+        /*
+         * Tracked buttons.
+         */
+        if (isTrackedButton(index)) {
+
+            synchronized (stateLock) {
+
+                /*
+                 * If an UP is already pending,
+                 * this physical UP is already represented.
+                 */
+                if (pendingUpTokens[index] != 0) {
+
+//                    Log.d(
+//                            TAG,
+//                            "KEYUP already pending"
+//                                    + " index=" + index
+//                                    + " token="
+//                                    + pendingUpTokens[index]
+//                    );
+
+                    ensureUpRetryLocked(index);
+
+                    return true;
+                }
+
+
+                /*
+                 * Release the local state.
+                 */
+                transitionFrame.setReleased(index);
+
+
+                /*
+                 * Send the FIRST logical KEYUP.
+                 *
+                 * This token is stored permanently until
+                 * the server confirms it.
+                 */
+                long upToken =
+                        sendUnreliableIfChanged(
+                                TYPE_KEYUP
+                        );
+
+
+                pendingUpTokens[index] =
+                        upToken;
+
+
+//                Log.d(
+//                        TAG,
+//                        "KEYUP sent"
+//                                + " index=" + index
+//                                + " token=" + upToken
+//                                + " highestACK="
+//                                + highestAckToken
+//                );
+
+
+                /*
+                 * Start retrying if necessary.
+                 */
+                ensureUpRetryLocked(index);
+            }
+
+            return true;
+        }
+
+
+        /*
+         * Non-tracked buttons.
+         */
+        synchronized (stateLock) {
+
+            transitionFrame.setReleased(index);
+
+            sendUnreliableIfChanged(
+                    TYPE_KEYUP
+            );
+        }
+
+        return true;
+    }
+
+
+    /*
+     * ============================================================
+     * UP RETRY
+     * ============================================================
+     */
+
+    private void ensureUpRetryLocked(int index) {
+
+        if (pendingUpTokens[index] == 0) {
+            return;
+        }
+
+        if (upRetryRunning[index]) {
+            return;
+        }
+
+        upRetryRunning[index] = true;
+
+        upRetryTasks[index] =
+                buttonRetryExecutor.scheduleWithFixedDelay(
+                        () -> retryPendingUp(index),
+                        UP_RETRY_MS,
+                        UP_RETRY_MS,
+                        TimeUnit.MILLISECONDS
+                );
+    }
+
+
+    private void retryPendingUp(int index) {
+
+        synchronized (stateLock) {
+
+            long originalUpToken =
+                    pendingUpTokens[index];
+
+
+            /*
+             * ACK already arrived.
+             */
+            if (originalUpToken == 0) {
+
+                stopUpRetryLocked(index);
+
+                return;
+            }
+
+
+            /*
+             * IMPORTANT:
+             *
+             * We DO NOT replace:
+             *
+             *     pendingUpTokens[index]
+             *
+             * with the retry token.
+             *
+             * Example:
+             *
+             *     original UP = 11
+             *     retry       = 15
+             *     retry       = 19
+             *
+             * pendingUpTokens[index] remains 11.
+             */
+            transitionFrame.setReleased(index);
+
+            long retryToken =
+                    sendUnreliableIfChanged(
+                            TYPE_KEYUP
+                    );
+
+
+//            Log.d(
+//                    TAG,
+//                    "KEYUP retry"
+//                            + " index=" + index
+//                            + " originalUP="
+//                            + originalUpToken
+//                            + " retryToken="
+//                            + retryToken
+//                            + " highestACK="
+//                            + highestAckToken
+//            );
+        }
+    }
+
+
+    private void stopUpRetryLocked(int index) {
+
+        upRetryRunning[index] = false;
+
+        if (upRetryTasks[index] != null) {
+
+            upRetryTasks[index].cancel(false);
+
+            upRetryTasks[index] = null;
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * BUTTON TRACKING
+     * ============================================================
+     */
+
+    private boolean isTrackedButton(int index) {
+
+        /*
+         * Menu, View, LS, RS, LB, RB, Nexus,
+         * Share, A, B, X, Y.
+         *
+         * D-pad is handled separately.
+         */
+        return index >= 4 &&
+                index <
+                        GamepadTransitionFrame.TRANSITION_COUNT;
+    }
+
+
+    /*
+     * ============================================================
+     * GENERIC MOTION
+     * ============================================================
+     */
+
+    public boolean onGenericMotion(
+            MotionEvent event) {
+
+        if (!isPrepared ||
+                isRemoteEvent(event.getDevice())
+                ||
+                (event.getSource() &
+                        InputDevice.SOURCE_JOYSTICK)
+                        != InputDevice.SOURCE_JOYSTICK) {
+
+            return false;
+        }
+
+        synchronized (stateLock) {
+
+            rawLeftX =
+                    event.getAxisValue(
+                            MotionEvent.AXIS_X
+                    );
+
+            rawLeftY =
+                    event.getAxisValue(
+                            MotionEvent.AXIS_Y
+                    );
+
+            rawRightX =
+                    event.getAxisValue(axisRSX);
+
+            rawRightY =
+                    event.getAxisValue(axisRSY);
+
+
+            /*
+             * Left stick.
+             */
+            applyRadialDeadzone(
+                    rawLeftX,
+                    rawLeftY,
+                    stickDeadzone,
+                    1.0f,
+                    stickScratch
+            );
+
+            transitionFrame.setLeftStick(
+                    stickScratch[0],
+                    stickScratch[1]
+            );
+
+
+            /*
+             * Right stick.
+             */
+            applyRadialDeadzone(
+                    rawRightX,
+                    rawRightY,
+                    stickDeadzone,
+                    rightStickCurveExponent,
+                    stickScratch
+            );
+
+            float rx =
+                    stickScratch[0] *
+                            cameraSensitivity;
+
+            float ry =
+                    stickScratch[1] *
+                            cameraSensitivity;
+
+            transitionFrame.setRightStick(
+                    clamp(rx),
+                    clamp(ry)
+            );
+
+
+            /*
+             * Analog triggers.
+             */
+            if (leftTriggerIsAnalog) {
+
+                transitionFrame.axes[
+                        GamepadTransitionFrame.AXIS_LEFT_TRIGGER
+                        ] = Math.max(
+                        0f,
+                        event.getAxisValue(axisLT)
+                );
+            }
+
+
+            if (rightTriggerIsAnalog) {
+
+                transitionFrame.axes[
+                        GamepadTransitionFrame.AXIS_RIGHT_TRIGGER
+                        ] = Math.max(
+                        0f,
+                        event.getAxisValue(axisRT)
+                );
+            }
+
+
+            /*
+             * Hat/D-pad.
+             */
+            if (hasHatAxes) {
+
+                float hx =
+                        event.getAxisValue(
+                                MotionEvent.AXIS_HAT_X
+                        );
+
+                float hy =
+                        event.getAxisValue(
+                                MotionEvent.AXIS_HAT_Y
+                        );
+
+
+                boolean up =
+                        hy < -0.5f;
+
+                boolean down =
+                        hy > 0.5f;
+
+                boolean left =
+                        hx < -0.5f;
+
+                boolean right =
+                        hx > 0.5f;
+
+
+                if (up && !prevHatUp) {
+
+                    transitionFrame.bumpButton(
+                            GamepadTransitionFrame.INDEX_DPAD_UP
+                    );
+
+                } else if (!up && prevHatUp) {
+
+                    transitionFrame.setReleased(
+                            GamepadTransitionFrame.INDEX_DPAD_UP
+                    );
+                }
+
+
+                if (down && !prevHatDown) {
+
+                    transitionFrame.bumpButton(
+                            GamepadTransitionFrame.INDEX_DPAD_DOWN
+                    );
+
+                } else if (!down && prevHatDown) {
+
+                    transitionFrame.setReleased(
+                            GamepadTransitionFrame.INDEX_DPAD_DOWN
+                    );
+                }
+
+
+                if (left && !prevHatLeft) {
+
+                    transitionFrame.bumpButton(
+                            GamepadTransitionFrame.INDEX_DPAD_LEFT
+                    );
+
+                } else if (!left && prevHatLeft) {
+
+                    transitionFrame.setReleased(
+                            GamepadTransitionFrame.INDEX_DPAD_LEFT
+                    );
+                }
+
+
+                if (right && !prevHatRight) {
+
+                    transitionFrame.bumpButton(
+                            GamepadTransitionFrame.INDEX_DPAD_RIGHT
+                    );
+
+                } else if (!right && prevHatRight) {
+
+                    transitionFrame.setReleased(
+                            GamepadTransitionFrame.INDEX_DPAD_RIGHT
+                    );
+                }
+
+
+                prevHatUp = up;
+                prevHatDown = down;
+                prevHatLeft = left;
+                prevHatRight = right;
+            }
+
+
+            /*
+             * GenericMotion also increments the GLOBAL token.
+             *
+             * This is completely fine.
+             *
+             * pendingUpTokens[] keeps the original KEYUP token.
+             */
+            sendUnreliableIfChanged(
+                    TYPE_MOTION
+            );
+        }
+
+        return true;
+    }
+
+
+    /*
+     * ============================================================
+     * TOKEN GENERATION
+     * ============================================================
+     */
+
+    private long sendUnreliableIfChanged(
+            int methodType) {
+
+        transitionFrame.physicalPhysicality =
+                transitionFrame.computeButtonPhysicality();
+
+        GamepadTransitionFrame snapshot =
+                transitionFrame.copy();
+
+
+        /*
+         * GLOBAL token.
+         *
+         * Motion, DOWN, UP and retry frames all use
+         * the same sequence.
+         */
+        long token =
+                unreliableToken.incrementAndGet();
+
+        long tick =
+                tickCounter++;
+
+
+        GamepadPendingState state =
+                new GamepadPendingState(
+                        token,
+                        tick,
+                        snapshot
+                );
+
+
+        sendTwice(state);
+
+        return token;
+    }
+
+
+    /*
+     * ============================================================
+     * STICK PROCESSING
+     * ============================================================
+     */
+
+    private static void applyRadialDeadzone(
+            float rawX,
+            float rawY,
+            float deadzone,
+            float curveExponent,
+            float[] out) {
+
+        float magnitude =
+                (float) Math.sqrt(
+                        rawX * rawX +
+                                rawY * rawY
+                );
+
+
+        if (magnitude < deadzone ||
+                magnitude < 1e-6f) {
+
+            out[0] = 0f;
+            out[1] = 0f;
+
+            return;
+        }
+
+
+        float normalizedMag =
+                Math.min(
+                        1f,
+                        (magnitude - deadzone) /
+                                (1f - deadzone)
+                );
+
+
+        float curvedMag =
+                (curveExponent == 1.0f)
+                        ? normalizedMag
+                        : (float) Math.pow(
+                        normalizedMag,
+                        curveExponent
+                );
+
+
+        float scale =
+                curvedMag / magnitude;
+
+
+        out[0] =
+                rawX * scale;
+
+        out[1] =
+                rawY * scale;
+    }
+
+
+    private static float clamp(
+            float value) {
+
+        if (value > 1f) {
+            return 1f;
+        }
+
+        if (value < -1f) {
+            return -1f;
+        }
+
+        return value;
+    }
+
+
+    /*
+     * ============================================================
+     * SETTINGS
+     * ============================================================
+     */
+
+    public void setStickDeadzone(
+            float deadzone) {
+
+        this.stickDeadzone =
+                deadzone;
+    }
+
+
+    public float getStickDeadzone() {
+
+        return stickDeadzone;
+    }
+
+
+    public void setCameraSensitivity(
+            float sensitivity) {
+
+        this.cameraSensitivity =
+                sensitivity;
+    }
+
+
+    public float getCameraSensitivity() {
+
+        return cameraSensitivity;
+    }
+
+
+    public float getRightStickResponseCurve() {
+
+        return rightStickCurveExponent;
+    }
+
+
+    public void setRightStickResponseCurve(
+            float exponent) {
+
+        this.rightStickCurveExponent =
+                Math.max(
+                        0.25f,
+                        Math.min(
+                                4.0f,
+                                exponent
+                        )
+                );
+    }
+
+
+    /*
+     * ============================================================
+     * AXIS INFORMATION
+     * ============================================================
+     */
+
+    public int getRightStickAxisX() {
+
+        return axisRSX;
+    }
+
+
+    public int getRightStickAxisY() {
+
+        return axisRSY;
+    }
+
+
+    public void getRawStickState(
+            float[] out) {
+
+        synchronized (stateLock) {
+
+            out[0] = rawLeftX;
+            out[1] = rawLeftY;
+            out[2] = rawRightX;
+            out[3] = rawRightY;
+        }
+    }
+
+
+    public static void computeStickResponse(
+            float rawX,
+            float rawY,
+            float deadzone,
+            float curveExponent,
+            float sensitivity,
+            float[] out) {
+
+        applyRadialDeadzone(
+                rawX,
+                rawY,
+                deadzone,
+                curveExponent,
+                out
+        );
+
+        out[0] =
+                clamp(
+                        out[0] *
+                                sensitivity
+                );
+
+        out[1] =
+                clamp(
+                        out[1] *
+                                sensitivity
+                );
+    }
+
+
+    /*
+     * ============================================================
+     * OTHER
+     * ============================================================
+     */
+
+    public void setgamepadIndex(
+            int idx) {
+
+        this.transitionFrame.gamepadId =
+                idx;
+    }
+
+
+    public void stop() {
+
+        synchronized (stateLock) {
+
+            for (int i = 0;
+                 i < upRetryTasks.length;
+                 i++) {
+
+                stopUpRetryLocked(i);
+            }
+        }
+
+        buttonRetryExecutor.shutdownNow();
+    }
+
+
+    public void detectAxisLayout(
+            InputDevice device) {
+
+        prepare(device);
+    }
+
+
+    public InputDevice getLastDevice() {
+
+        return lastDevice;
+    }
+
+
+    public void pressNexusOnce() {
+
+        new Thread(() -> {
+
+            try {
+
+                synchronized (stateLock) {
+
+                    transitionFrame.bumpButton(
+                            GamepadTransitionFrame.INDEX_NEXUS
+                    );
+
+                    sendUnreliableIfChanged(
+                            TYPE_KEYDOWN
+                    );
+                }
+
+
+                Thread.sleep(60);
+
+
+                synchronized (stateLock) {
+
+                    transitionFrame.setReleased(
+                            GamepadTransitionFrame.INDEX_NEXUS
+                    );
+
+                    sendUnreliableIfChanged(
+                            TYPE_KEYUP
+                    );
+                }
+
+            } catch (InterruptedException e) {
+
+                Thread.currentThread().interrupt();
+            }
+
+        }).start();
+    }
+
+
+    public void setOnMenuTrigger(
+            Runnable onMenuTrigger) {
+
+        this.onMenuTrigger =
+                onMenuTrigger;
+    }
+}

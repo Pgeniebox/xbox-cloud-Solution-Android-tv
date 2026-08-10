@@ -1,0 +1,32 @@
+# Android Studio / IntelliJ
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/modules/
+/.idea/deploymentTargetDropDown.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Build artifacts
+*.apk
+*.aar
+*.jar
+
+# Signing files (IMPORTANT: Never share these)
+*.jks
+*.keystore
+keystore.properties
+
+# Project specific
+.artifacts/
+/app/libs/webrtc-modified.aar
