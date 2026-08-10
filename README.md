@@ -53,4 +53,6 @@ Special thanks to the **BetterXCloud** team. Their open-source research and scri
 Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
+*Note: Tested on Mi Box TV.*
+
 *Disclaimer: This project is not affiliated with, endorsed by, or sponsored by Microsoft or Xbox.*
