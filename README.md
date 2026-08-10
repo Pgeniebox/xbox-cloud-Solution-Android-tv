@@ -49,7 +49,10 @@ Traditional xCloud clients run entirely inside a browser engine (WebView). This 
 
 ## 📜 Acknowledgements
 
-Special thanks to the **BetterXCloud** **XStreaming** team's. Their open-source research and scripts provided the foundation for understanding the xCloud signaling protocol, which made this native implementation possible.
+Special thanks to the following teams for their incredible research and open-source contributions to the xCloud ecosystem. Their work provided the essential foundation for understanding the signaling protocol and logic required to make this native Java implementation a reality:
+
+- **Better xCloud** ([@redphx](https://github.com/redphx/better-xcloud)) - For their extensive research and scripts.
+- **XStreaming** ([@Geocld](https://github.com/Geocld/XStreaming)) - For their innovative approach to xCloud streaming.
 
 ## ⚖️ License
 
