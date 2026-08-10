@@ -5,6 +5,9 @@ CloudX is a high-performance, open-source Android application designed for **Xbo
 > [!TIP]
 > This project is designed specifically for power users and Android TV owners who want the lowest possible latency and maximum controller compatibility.
 
+## 👨‍💻 Developed by
+**LaGab Adel** - [GitHub Profile](https://github.com/Pgeniebox)
+
 ## 🚀 Key Innovations
 
 ### Native Handover vs. WebView
