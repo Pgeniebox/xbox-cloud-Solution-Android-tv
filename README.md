@@ -1,3 +1,4 @@
+#Full project url: https://github.com/Pgeniebox/cloudxsolution-android-tv
 # Xbox Cloud Solution for Android TV (CloudX)
 
 CloudX is a high-performance, open-source Android application designed for **Xbox Cloud Gaming**. It is the first client to move the core streaming logic away from the browser-based WebView and into a **Pure Native Java** environment using WebRTC.
